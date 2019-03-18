@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+	<bean id="splitterUri" class="uriHeader.splitter"/>
+	<bean id="jsonResult" class="jsonResult.totals"/>
+	<bean id="DHondt" class="DHondt.DHondtResults"/>
+	<bean id="arrayVots" class="process.arrayVots"/>
+
+	<bean id="jsonAggregation" class="aggregation.jsonAggregation"/>
+	<bean id="circunscripcions" class="aggregation.circunscripcions"/>
+	<bean id="esconsCatalunya" class="aggregation.esconsCatalunya"/>
+	<bean id="votsXmunicipi" class="aggregation.jsonAggregation"/>
+
+	<bean id="firestore" class="firestore.getVots"/>
+
+	<camelContext id="recompte.recompte"
+				  xmlns="http://camel.apache.org/schema/spring">
+
+		<propertyPlaceholder id="properties"
+							 location="classpath:/etc/uri.properties"/>
+
+		<streamCaching id="CacheConfig" bufferSize="100024000" spoolThreshold="100024000"/>
+
+		<dataFormats>
+			<json id="json" library="Jackson"/>
+		</dataFormats>
+
+		<route autoStartup="false" id="fromFirestore">
+			<from uri="timer://foo?repeatCount=1"/>
+			<process ref="firestore"/>
+			<split streaming="true" parallelProcessing="true" id="splitVots">
+				<simple>${body}</simple>
+				<setBody>
+					<groovy>
+						request.body.data = request.body.data.toString()
+						return request.body
+					</groovy>
+				</setBody>
+				<setHeader headerName="CamelHttpMethod"><constant>POST</constant></setHeader>
+				<setHeader headerName="Exchange.CONTENT_TYPE"><simple>application/json; charset=UTF-8</simple></setHeader>
+				<marshal ref="json"/>
+				<toD uri="http4://192.168.99.100:9200/vots/vot?bridgeEndpoint=true&amp;throwExceptionOnFailure=false"/>
+			</split>
+		</route>
+
+		<route autoStartup="false" id="fromElasticsearch">
+			<from uri="timer://foo?repeatCount=1"/>
+			<removeHeaders pattern="CamelHttp*" />
+			<setHeader headerName="CamelHttpMethod"><constant>POST</constant></setHeader>
+			<setHeader headerName="Exchange.CONTENT_TYPE"><simple>application/json; charset=UTF-8</simple></setHeader>
+			<setBody><simple>{"query" : {"match_all" : {}}}</simple></setBody>
+			<toD uri="http4://192.168.99.100:9200/vots/_search?bridgeEndpoint=true&amp;throwExceptionOnFailure=false"/>
+			<split streaming="true" parallelProcessing="true">
+				<jsonpath>$.hits.hits[*]._source</jsonpath>
+				<to uri="seda:vots"/>
+			</split>
+		</route>
+
+		<route autoStartup="true" id="VotsxMesa">
+			<from uri="seda:vots?multipleConsumers=true"/>
+			<marshal ref="json"/>
+			<aggregate strategyRef="jsonAggregation" parallelProcessing="true" completionTimeout="1000">
+				<correlationExpression><constant>true</constant></correlationExpression>
+				<transform>
+					<simple>[${body}]</simple>
+				</transform>
+				<to uri="file:camel/resultats?fileName=vots_per_mesa.json"/>
+			</aggregate>
+		</route>
+
+		<route autoStartup="true" id="VotsxMunicipi">
+			<from uri="seda:vots?multipleConsumers=true"/>
+			<setHeader headerName="municipi"><simple>${body[municipi]}</simple></setHeader>
+			<setHeader headerName="provincia"><simple>${body[codProv]}</simple></setHeader>
+			<aggregate strategyRef="votsXmunicipi" parallelProcessing="true" completionTimeout="1000">
+				<correlationExpression><simple>${body[municipi]}</simple></correlationExpression>
+				<setBody>
+					<simple>{"provincia": "${header.provincia}",
+						"municipi": "${header.municipi}",
+						"votsVox": "${header.votsVox}",
+						"votsCiudadanos": "${header.votsCiudadanos}",
+						"votsPDECAT": "${header.votsPDECAT}",
+						"votsPP": "${header.votsPP}",
+						"votsComuns": "${header.votsComuns}",
+						"votsERC": "${header.votsERC}",
+						"votsPodemos": "${header.votsPodemos}",
+						"votsPSOE": "${header.votsPSOE}"}
+					</simple>
+				</setBody>
+			</aggregate>
+			<marshal ref="json"/>
+			<aggregate strategyRef="jsonAggregation" parallelProcessing="true" completionTimeout="1000">
+				<correlationExpression><constant>true</constant></correlationExpression>
+				<transform>
+					<simple>[${body}]</simple>
+				</transform>
+				<to uri="file:camel/resultats?fileName=vots_per_municipi.json"/>
+			</aggregate>
+		</route>
+
+		<route autoStartup="true" id="esconsxProvincia">
+			<from uri="seda:vots?multipleConsumers=true"/>
+			<setHeader headerName="idMesa"><jsonpath suppressExceptions="true">$.idMesa</jsonpath></setHeader>
+			<setHeader headerName="data"><jsonpath suppressExceptions="true">$.data</jsonpath></setHeader>
+			<setHeader headerName="idProvincia"><jsonpath suppressExceptions="true">$.codProv</jsonpath></setHeader>
+			<setHeader headerName="municipi"><jsonpath suppressExceptions="true">$.municipi</jsonpath></setHeader>
+			<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+			<aggregate strategyRef="circunscripcions" parallelProcessing="true" completionTimeout="1000">
+				<correlationExpression><simple>${headers.idProvincia}</simple></correlationExpression>
+				<process ref="arrayVots"/>
+				<choice>
+					<when>
+						<simple>${headers.idProvincia} == '08'</simple>
+						<!-- Barcelona 85 Escons -->
+						<setHeader headerName="escons"><constant>85</constant></setHeader>
+						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
+						<process ref="DHondt"/>
+						<log message="DHONT BCN: ${body}"/>
+						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
+						<to uri="seda:esconsCatalunya"/>
+						<to uri="velocity:json.vm"/>
+						<to uri="file:camel/resultats?fileName=esconsBarcelona.json"/>
+					</when>
+					<when>
+						<simple>${headers.idProvincia} == '17'</simple>
+						<!-- Girona 17 Escons -->
+						<setHeader headerName="escons"><constant>17</constant></setHeader>
+						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
+						<process ref="DHondt"/>
+						<log message="DHONT Girona: ${body}"/>
+						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
+						<to uri="seda:esconsCatalunya"/>
+						<to uri="velocity:json.vm"/>
+						<to uri="file:camel/resultats?fileName=esconsGirona.json"/>
+					</when>
+					<when>
+						<simple>${headers.idProvincia} == '25'</simple>
+						<!-- Lleida 15 Escons -->
+						<setHeader headerName="escons"><constant>15</constant></setHeader>
+						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
+						<process ref="DHondt"/>
+						<log message="DHONT Lleida: ${body}"/>
+						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
+						<to uri="seda:esconsCatalunya"/>
+						<to uri="velocity:json.vm"/>
+						<to uri="file:camel/resultats?fileName=esconsLleida.json"/>
+					</when>
+					<when>
+						<simple>${headers.idProvincia} == '43'</simple>
+						<!-- Tarragona 18 Escons -->
+						<setHeader headerName="escons"><constant>18</constant></setHeader>
+						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
+						<process ref="DHondt"/>
+						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
+						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
+						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
+						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
+						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
+						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
+						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
+						<to uri="seda:esconsCatalunya"/>
+						<to uri="velocity:json.vm"/>
+						<to uri="file:camel/resultats?fileName=esconsTarragona.json"/>
+					</when>
+				</choice>
+			</aggregate>
+		</route>
+
+		<route autoStartup="true" id="esconsCatalunya">
+			<from uri="seda:esconsCatalunya"/>
+			<aggregate strategyRef="esconsCatalunya" completionSize="4">
+				<correlationExpression><constant>true</constant></correlationExpression>
+				<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+				<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
+				<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
+				<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
+				<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
+				<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
+				<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
+				<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
+				<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
+				<log message="esconsCatalunya:${body}"/>
+				<to uri="velocity:json.vm"/>
+				<to uri="file:camel/resultats?fileName=escons.json"/>
+			</aggregate>
+		</route>
+
+		<route autoStartup="false" id="pushGithub">
+			<!--<from uri="direct:pushGithub"/>-->
+			<from uri="timer://foo?repeatCount=1"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>data/vots_per_mesa.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019.git&amp;remoteName=https://github.com/jordicardoso/28a2019.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+		</route>
+	</camelContext>
+</beans>

@@ -1,0 +1,8 @@
+/target/
+/bin/
+/.settings/
+/.classpath
+/.project
+/simulador21d.iml
+/.idea
+/camel

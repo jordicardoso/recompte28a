@@ -1,0 +1,15 @@
+body {
+  padding-top: 50px;
+}
+
+.modalImage .image-wrapper {
+    text-align: center;
+}
+.modalImage .image-wrapper img {
+    max-width: 960px;
+    max-height: 1280px;
+}
+.modalImage .image-description {
+    text-align: center;
+    margin-top: 10px;
+}

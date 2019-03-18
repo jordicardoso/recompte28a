@@ -1,0 +1,82 @@
+[
+  {
+      "id": "jxc",
+      "legend": "JxC",
+      "name": "JxC",
+      "colour": "#FF5B9C",
+      "seats": ${headers.PDECAT},
+      "vots" : ${headers.votsPDECAT}
+  },
+  {
+      "id": "erc",
+      "legend": "ERC",
+      "name": "ERC",
+      "colour": "#F8BC4B",
+      "seats": ${headers.ERC},
+      "vots": ${headers.votsERC}
+  },
+  {
+      "id": "cup",
+      "legend": "CUP",
+      "name": "CUP",
+      "colour": "#F6E134",
+      "seats": ${headers.CUP},
+      "vots": ${headers.votsCUP}
+  },
+  {
+      "id": "cs",
+      "legend": "Cs",
+      "name": "Cs",
+      "colour": "#FA7515",
+      "seats": ${headers.Cs},
+      "vots": ${headers.votsCs}
+  },
+  {
+      "id": "psc",
+      "legend": "PSC",
+      "name": "PSC",
+      "colour": "#C8001E",
+      "seats": ${headers.PSC},
+      "vots": ${headers.votsPSC}
+  },
+  {
+      "id": "com",
+      "legend": "Comuns",
+      "name": "Comuns",
+      "colour": "#701471",
+      "seats": ${headers.Comuns},
+      "vots": ${headers.votsComuns}
+  },
+  {
+      "id": "pp",
+      "legend": "PP",
+      "name": "PP",
+      "colour": "#4F92E1",
+      "seats": ${headers.PP},
+      "vots": ${headers.votsPP}
+  },
+  {
+      "id": "pacma",
+      "legend": "PACMA",
+      "name": "PACMA",
+      "colour": "#BAC02E",
+      "seats": ${headers.PACMA},
+      "vots": ${headers.votsPACMA}
+  },
+  {
+      "id": "recortes",
+      "legend": "Recortes",
+      "name": "Recortes",
+      "colour": "#4B873E",
+      "seats": ${headers.recortes},
+      "vots": ${headers.votsrecortes}
+  },
+  {
+      "id": "pumj",
+      "legend": "PUMJUST",
+      "name": "PUMJUST",
+      "colour": "#48BFE9",
+      "seats": ${headers.pumj},
+      "vots": ${headers.votspumj}
+  }
+]
