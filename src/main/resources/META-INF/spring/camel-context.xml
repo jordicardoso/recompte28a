@@ -353,7 +353,7 @@
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/vots_per_mesa.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització vots_per_mesa.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
