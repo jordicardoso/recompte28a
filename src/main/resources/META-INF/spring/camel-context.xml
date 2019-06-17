@@ -357,71 +357,71 @@
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització vots_per_mesa.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/vots_per_municipi.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització vots_per_municipi.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/escons.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització escons.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/esconsBarcelona.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització esconsBarcelona.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/esconsGirona.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització esconsGirona.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/esconsLleida.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització esconsLleida.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/esconsTarragona.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització esconsTarragona.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 			<setHeader headerName="CamelGitFilename">
 				<constant>docs/data/meses_pendents.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
 				<simple>Actualització meses_pendents.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/recompte-28abril/dades/?operation=push&amp;remotePath=https://github.com/jordicardoso/recompte28a.git&amp;remoteName=https://github.com/jordicardoso/recompte28a.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 		</route>
 	</camelContext>
 </beans>
