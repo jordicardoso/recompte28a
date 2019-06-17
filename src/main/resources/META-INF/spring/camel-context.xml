@@ -9,20 +9,16 @@
 	<bean id="jsonResult" class="jsonResult.totals"/>
 	<bean id="DHondt" class="DHondt.DHondtResults"/>
 	<bean id="arrayVots" class="process.arrayVots"/>
-
 	<bean id="jsonAggregation" class="aggregation.jsonAggregation"/>
 	<bean id="circunscripcions" class="aggregation.circunscripcions"/>
 	<bean id="esconsCatalunya" class="aggregation.esconsCatalunya"/>
 	<bean id="votsXmunicipi" class="aggregation.jsonAggregation"/>
 
-	<bean id="firestore" class="firestore.getVots"/>
+	<bean id="getVots" class="firestore.getVots"/>
 
-	<camelContext id="recompte.recompte"
-				  xmlns="http://camel.apache.org/schema/spring">
+	<camelContext streamCache="true" id="recompte.recompte" xmlns="http://camel.apache.org/schema/spring">
 
-		<propertyPlaceholder id="properties"
-							 location="classpath:/etc/uri.properties"/>
-
+		<propertyPlaceholder id="properties" location="classpath:/etc/uri.properties"/>
 		<streamCaching id="CacheConfig" bufferSize="100024000" spoolThreshold="100024000"/>
 
 		<dataFormats>
@@ -30,227 +26,402 @@
 		</dataFormats>
 
 		<route autoStartup="false" id="fromFirestore">
-			<from uri="timer://foo?repeatCount=1"/>
-			<process ref="firestore"/>
+			<!--<from uri="timer://foo?repeatCount=1"/>-->
+			<from uri="{{start1m}}"/>
+			<process ref="getVots"/>
 			<split streaming="true" parallelProcessing="true" id="splitVots">
 				<simple>${body}</simple>
-				<setBody>
-					<groovy>
-						request.body.data = request.body.data.toString()
-						return request.body
-					</groovy>
-				</setBody>
 				<setHeader headerName="CamelHttpMethod"><constant>POST</constant></setHeader>
 				<setHeader headerName="Exchange.CONTENT_TYPE"><simple>application/json; charset=UTF-8</simple></setHeader>
 				<marshal ref="json"/>
 				<toD uri="http4://192.168.99.100:9200/vots/vot?bridgeEndpoint=true&amp;throwExceptionOnFailure=false"/>
+				<log message="${body}"/>
 			</split>
 		</route>
 
-		<route autoStartup="false" id="fromElasticsearch">
+		<route autoStartup="true" id="fromElasticsearch">
 			<from uri="timer://foo?repeatCount=1"/>
+			<!--<from uri="{{start5m}}"/>-->
 			<removeHeaders pattern="CamelHttp*" />
 			<setHeader headerName="CamelHttpMethod"><constant>POST</constant></setHeader>
 			<setHeader headerName="Exchange.CONTENT_TYPE"><simple>application/json; charset=UTF-8</simple></setHeader>
-			<setBody><simple>{"query" : {"match_all" : {}}}</simple></setBody>
+			<setBody><simple>{"size" : 10000,"query" : {"match_all" : {}}}</simple></setBody>
 			<toD uri="http4://192.168.99.100:9200/vots/_search?bridgeEndpoint=true&amp;throwExceptionOnFailure=false"/>
-			<split streaming="true" parallelProcessing="true">
-				<jsonpath>$.hits.hits[*]._source</jsonpath>
-				<to uri="seda:vots"/>
-			</split>
+			<choice>
+				<when>
+					<simple>${header.CamelHttpResponseCode} == 200</simple>
+					<unmarshal ref="json"/>
+                    <multicast parallelProcessing="true">
+						<to uri="direct:votsxMesa"/>
+                        <to uri="direct:votsxMunicipi"/>
+						<to uri="direct:EsconsBarcelona"/>
+						<to uri="direct:EsconsGirona"/>
+                        <to uri="direct:EsconsLleida"/>
+                        <to uri="direct:EsconsTarragona"/>
+                        <to uri="direct:mesesPendents"/>
+                	</multicast>
+					<to uri="direct:jsonMesesPendents"/>
+				</when>
+				<otherwise>
+					<log loggingLevel="ERROR" message="No es poden recollir vots de la cache Elasticsearch"/>
+				</otherwise>
+			</choice>
 		</route>
 
 		<route autoStartup="true" id="VotsxMesa">
-			<from uri="seda:vots?multipleConsumers=true"/>
-			<marshal ref="json"/>
-			<aggregate strategyRef="jsonAggregation" parallelProcessing="true" completionTimeout="1000">
-				<correlationExpression><constant>true</constant></correlationExpression>
-				<transform>
-					<simple>[${body}]</simple>
-				</transform>
-				<to uri="file:camel/resultats?fileName=vots_per_mesa.json"/>
-			</aggregate>
-		</route>
-
-		<route autoStartup="true" id="VotsxMunicipi">
-			<from uri="seda:vots?multipleConsumers=true"/>
-			<setHeader headerName="municipi"><simple>${body[municipi]}</simple></setHeader>
-			<setHeader headerName="provincia"><simple>${body[codProv]}</simple></setHeader>
-			<aggregate strategyRef="votsXmunicipi" parallelProcessing="true" completionTimeout="1000">
-				<correlationExpression><simple>${body[municipi]}</simple></correlationExpression>
+			<from uri="direct:votsxMesa"/>
+			<split streaming="true" strategyRef="jsonAggregation" parallelProcessing="true">
+				<jsonpath>$.hits.hits[*]._source</jsonpath>
+				<marshal ref="json"/>
+				<setHeader headerName="idMesa"><jsonpath suppressExceptions="true">$.idMesa</jsonpath></setHeader>
+				<setHeader headerName="data"><jsonpath suppressExceptions="true">$.data</jsonpath></setHeader>
+				<setHeader headerName="idUser"><jsonpath suppressExceptions="true">$.idUser</jsonpath></setHeader>
+				<setHeader headerName="municipi"><jsonpath suppressExceptions="true">$.municipi</jsonpath></setHeader>
+				<setHeader headerName="provincia"><jsonpath suppressExceptions="true">$.codProv</jsonpath></setHeader>
+				<setHeader headerName="votsVox"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Vox')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsCiudadanos"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Cs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPP"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PP')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsJxCAT"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'JxCAT')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsComuns"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Comuns')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsERC"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'ERC')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPACMA"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PACMA')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPSOE"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PSOE')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsBlancs"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'blancs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsNuls"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'nuls')].vots</jsonpath></setHeader>
 				<setBody>
 					<simple>{"provincia": "${header.provincia}",
 						"municipi": "${header.municipi}",
-						"votsVox": "${header.votsVox}",
-						"votsCiudadanos": "${header.votsCiudadanos}",
-						"votsPDECAT": "${header.votsPDECAT}",
-						"votsPP": "${header.votsPP}",
-						"votsComuns": "${header.votsComuns}",
-						"votsERC": "${header.votsERC}",
-						"votsPodemos": "${header.votsPodemos}",
-						"votsPSOE": "${header.votsPSOE}"}
+						"idMesa": "${header.idMesa}",
+						"data": "${header.data}",
+						"idUser": "${header.idUser}",
+						"votsVox": ${header.votsVox},
+						"votsCiudadanos": ${header.votsCiudadanos},
+						"votsJxCAT": ${header.votsJxCAT},
+						"votsPP": ${header.votsPP},
+						"votsComuns": ${header.votsComuns},
+						"votsERC": ${header.votsERC},
+						"votsPACMA": ${header.votsPACMA},
+						"votsPSOE": ${header.votsPSOE},
+						"votsBlancs": ${header.votsBlancs},
+						"votsNuls": ${header.votsNuls}}
 					</simple>
 				</setBody>
-			</aggregate>
-			<marshal ref="json"/>
-			<aggregate strategyRef="jsonAggregation" parallelProcessing="true" completionTimeout="1000">
-				<correlationExpression><constant>true</constant></correlationExpression>
-				<transform>
-					<simple>[${body}]</simple>
-				</transform>
-				<to uri="file:camel/resultats?fileName=vots_per_municipi.json"/>
-			</aggregate>
+			</split>
+			<transform>
+				<simple>[${body}]</simple>
+			</transform>
+			<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=vots_per_mesa.json"/>
 		</route>
 
-		<route autoStartup="true" id="esconsxProvincia">
-			<from uri="seda:vots?multipleConsumers=true"/>
-			<setHeader headerName="idMesa"><jsonpath suppressExceptions="true">$.idMesa</jsonpath></setHeader>
-			<setHeader headerName="data"><jsonpath suppressExceptions="true">$.data</jsonpath></setHeader>
-			<setHeader headerName="idProvincia"><jsonpath suppressExceptions="true">$.codProv</jsonpath></setHeader>
-			<setHeader headerName="municipi"><jsonpath suppressExceptions="true">$.municipi</jsonpath></setHeader>
-			<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-			<aggregate strategyRef="circunscripcions" parallelProcessing="true" completionTimeout="1000">
-				<correlationExpression><simple>${headers.idProvincia}</simple></correlationExpression>
-				<process ref="arrayVots"/>
-				<choice>
-					<when>
-						<simple>${headers.idProvincia} == '08'</simple>
-						<!-- Barcelona 85 Escons -->
-						<setHeader headerName="escons"><constant>85</constant></setHeader>
-						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
-						<process ref="DHondt"/>
-						<log message="DHONT BCN: ${body}"/>
-						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
-						<to uri="seda:esconsCatalunya"/>
-						<to uri="velocity:json.vm"/>
-						<to uri="file:camel/resultats?fileName=esconsBarcelona.json"/>
-					</when>
-					<when>
-						<simple>${headers.idProvincia} == '17'</simple>
-						<!-- Girona 17 Escons -->
-						<setHeader headerName="escons"><constant>17</constant></setHeader>
-						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
-						<process ref="DHondt"/>
-						<log message="DHONT Girona: ${body}"/>
-						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
-						<to uri="seda:esconsCatalunya"/>
-						<to uri="velocity:json.vm"/>
-						<to uri="file:camel/resultats?fileName=esconsGirona.json"/>
-					</when>
-					<when>
-						<simple>${headers.idProvincia} == '25'</simple>
-						<!-- Lleida 15 Escons -->
-						<setHeader headerName="escons"><constant>15</constant></setHeader>
-						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
-						<process ref="DHondt"/>
-						<log message="DHONT Lleida: ${body}"/>
-						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
-						<to uri="seda:esconsCatalunya"/>
-						<to uri="velocity:json.vm"/>
-						<to uri="file:camel/resultats?fileName=esconsLleida.json"/>
-					</when>
-					<when>
-						<simple>${headers.idProvincia} == '43'</simple>
-						<!-- Tarragona 18 Escons -->
-						<setHeader headerName="escons"><constant>18</constant></setHeader>
-						<setHeader headerName="votsPDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="votsERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="votsPP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="votsComuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="votsPodemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="votsPSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="votsVox"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="votsCiudadanos"><simple>${body[7]}</simple></setHeader>
-						<process ref="DHondt"/>
-						<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-						<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
-						<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
-						<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
-						<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
-						<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
-						<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
-						<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
-						<to uri="seda:esconsCatalunya"/>
-						<to uri="velocity:json.vm"/>
-						<to uri="file:camel/resultats?fileName=esconsTarragona.json"/>
-					</when>
-				</choice>
-			</aggregate>
+		<route autoStartup="true" id="VotsxMunicipi">
+			<from uri="direct:votsxMunicipi"/>
+			<split streaming="true" parallelProcessing="true">
+				<jsonpath>$.hits.hits[*]._source</jsonpath>
+				<setHeader headerName="municipi"><jsonpath>$.municipi</jsonpath></setHeader>
+				<setHeader headerName="provincia"><jsonpath>$.codProv</jsonpath></setHeader>
+				<setHeader headerName="votsVox"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Vox')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsCiudadanos"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Cs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPP"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PP')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsJxCAT"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'JxCAT')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsComuns"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Comuns')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsERC"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'ERC')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPACMA"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PACMA')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPSOE"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PSOE')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsBlancs"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'blancs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsNuls"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'nuls')].vots</jsonpath></setHeader>
+				<aggregate strategyRef="votsXmunicipi" parallelProcessing="true" completionTimeout="1000">
+					<correlationExpression><header>municipi</header></correlationExpression>
+					<setBody>
+						<simple>{"provincia": "${header.provincia}",
+							"municipi": "${header.municipi}",
+							"votsVox": ${header.votsVox},
+							"votsCiudadanos": ${header.votsCiudadanos},
+							"votsJxCAT": ${header.votsJxCAT},
+							"votsPP": ${header.votsPP},
+							"votsComuns": ${header.votsComuns},
+							"votsERC": ${header.votsERC},
+							"votsPACMA": ${header.votsPACMA},
+							"votsPSOE": ${header.votsPSOE},
+							"votsBlancs": ${header.votsBlancs},
+							"votsNuls": ${header.votsNuls}}
+						</simple>
+					</setBody>
+					<aggregate strategyRef="jsonAggregation" parallelProcessing="true" completionTimeout="1000">
+						<correlationExpression><constant>true</constant></correlationExpression>
+						<transform>
+							<simple>[${body}]</simple>
+						</transform>
+						<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=vots_per_municipi.json"/>
+					</aggregate>
+				</aggregate>
+			</split>
+		</route>
+
+		<route autoStartup="true" id="esconsBarcelona">
+			<from uri="direct:EsconsBarcelona"/>
+			<transform>
+				<jsonpath>$.hits.hits[*].[*][?(@.codProv == '08')]</jsonpath>
+			</transform>
+			<split streaming="true" strategyRef="circunscripcions" parallelProcessing="true">
+				<jsonpath>$</jsonpath>
+				<setHeader headerName="votsVox"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Vox')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsCiudadanos"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Cs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPP"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PP')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsJxCAT"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'JxCAT')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsComuns"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Comuns')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsERC"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'ERC')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPACMA"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PACMA')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPSOE"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PSOE')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsBlancs"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'blancs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsNuls"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'nuls')].vots</jsonpath></setHeader>
+			</split>
+			<setHeader headerName="escons"><constant>85</constant></setHeader>
+			<process ref="DHondt"/>
+			<setHeader headerName="JxCAT"><simple>${body[0]}</simple></setHeader>
+			<setHeader headerName="PSOE"><simple>${body[1]}</simple></setHeader>
+			<setHeader headerName="PACMA"><simple>${body[2]}</simple></setHeader>
+			<setHeader headerName="ERC"><simple>${body[3]}</simple></setHeader>
+			<setHeader headerName="Comuns"><simple>${body[4]}</simple></setHeader>
+			<setHeader headerName="PP"><simple>${body[5]}</simple></setHeader>
+			<setHeader headerName="Cs"><simple>${body[6]}</simple></setHeader>
+			<setHeader headerName="Vox"><simple>${body[7]}</simple></setHeader>
+			<setHeader headerName="Blancs"><simple>${body[8]}</simple></setHeader>
+			<setHeader headerName="Nuls"><simple>${body[9]}</simple></setHeader>
+			<wireTap uri="direct:esconsCatalunya"/>
+			<to uri="velocity:json.vm"/>
+			<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=esconsBarcelona.json"/>
+		</route>
+
+		<route autoStartup="true" id="esconsGirona">
+			<from uri="direct:EsconsGirona"/>
+			<transform>
+				<jsonpath>$.hits.hits[*].[*][?(@.codProv == '17')]</jsonpath>
+			</transform>
+			<split streaming="true" strategyRef="circunscripcions" parallelProcessing="true">
+				<jsonpath>$.*</jsonpath>
+				<setHeader headerName="votsVox"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Vox')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsCiudadanos"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Cs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPP"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PP')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsJxCAT"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'JxCAT')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsComuns"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Comuns')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsERC"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'ERC')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPACMA"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PACMA')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPSOE"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PSOE')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsBlancs"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'blancs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsNuls"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'nuls')].vots</jsonpath></setHeader>
+			</split>
+			<setHeader headerName="escons"><constant>17</constant></setHeader>
+			<process ref="DHondt"/>
+			<setHeader headerName="JxCAT"><simple>${body[0]}</simple></setHeader>
+			<setHeader headerName="PSOE"><simple>${body[1]}</simple></setHeader>
+			<setHeader headerName="PACMA"><simple>${body[2]}</simple></setHeader>
+			<setHeader headerName="ERC"><simple>${body[3]}</simple></setHeader>
+			<setHeader headerName="Comuns"><simple>${body[4]}</simple></setHeader>
+			<setHeader headerName="PP"><simple>${body[5]}</simple></setHeader>
+			<setHeader headerName="Cs"><simple>${body[6]}</simple></setHeader>
+			<setHeader headerName="Vox"><simple>${body[7]}</simple></setHeader>
+			<setHeader headerName="Blancs"><simple>${body[8]}</simple></setHeader>
+			<setHeader headerName="Nuls"><simple>${body[9]}</simple></setHeader>
+			<wireTap uri="direct:esconsCatalunya"/>
+			<to uri="velocity:json.vm"/>
+			<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=esconsGirona.json"/>
+		</route>
+
+		<route autoStartup="true" id="esconsLleida">
+			<from uri="direct:EsconsLleida"/>
+			<transform>
+				<jsonpath>$.hits.hits[*].[*][?(@.codProv == '25')]</jsonpath>
+			</transform>
+			<split streaming="true" strategyRef="circunscripcions" parallelProcessing="true">
+				<jsonpath>$.*</jsonpath>
+				<setHeader headerName="votsVox"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Vox')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsCiudadanos"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Cs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPP"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PP')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsJxCAT"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'JxCAT')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsComuns"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Comuns')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsERC"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'ERC')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPACMA"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PACMA')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPSOE"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PSOE')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsBlancs"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'blancs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsNuls"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'nuls')].vots</jsonpath></setHeader>
+			</split>
+			<setHeader headerName="escons"><constant>15</constant></setHeader>
+			<process ref="DHondt"/>
+			<setHeader headerName="JxCAT"><simple>${body[0]}</simple></setHeader>
+			<setHeader headerName="PSOE"><simple>${body[1]}</simple></setHeader>
+			<setHeader headerName="PACMA"><simple>${body[2]}</simple></setHeader>
+			<setHeader headerName="ERC"><simple>${body[3]}</simple></setHeader>
+			<setHeader headerName="Comuns"><simple>${body[4]}</simple></setHeader>
+			<setHeader headerName="PP"><simple>${body[5]}</simple></setHeader>
+			<setHeader headerName="Cs"><simple>${body[6]}</simple></setHeader>
+			<setHeader headerName="Vox"><simple>${body[7]}</simple></setHeader>
+			<setHeader headerName="Blancs"><simple>${body[8]}</simple></setHeader>
+			<setHeader headerName="Nuls"><simple>${body[9]}</simple></setHeader>
+			<wireTap uri="direct:esconsCatalunya"/>
+			<to uri="velocity:json.vm"/>
+			<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=esconsLleida.json"/>
+		</route>
+
+		<route autoStartup="true" id="esconsTarragona">
+			<from uri="direct:EsconsTarragona"/>
+			<transform>
+				<jsonpath>$.hits.hits[*].[*][?(@.codProv == '43')]</jsonpath>
+			</transform>
+			<split streaming="true" strategyRef="circunscripcions" parallelProcessing="true">
+				<jsonpath>$.*</jsonpath>
+				<setHeader headerName="votsVox"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Vox')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsCiudadanos"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Cs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPP"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PP')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsJxCAT"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'JxCAT')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsComuns"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'Comuns')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsERC"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'ERC')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPACMA"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PACMA')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsPSOE"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'PSOE')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsBlancs"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'blancs')].vots</jsonpath></setHeader>
+				<setHeader headerName="votsNuls"><jsonpath resultType="Integer" suppressExceptions="true">$.partits[?(@.abreviat == 'nuls')].vots</jsonpath></setHeader>
+			</split>
+			<setHeader headerName="escons"><constant>18</constant></setHeader>
+			<process ref="DHondt"/>
+			<setHeader headerName="JxCAT"><simple>${body[0]}</simple></setHeader>
+			<setHeader headerName="PSOE"><simple>${body[1]}</simple></setHeader>
+			<setHeader headerName="PACMA"><simple>${body[2]}</simple></setHeader>
+			<setHeader headerName="ERC"><simple>${body[3]}</simple></setHeader>
+			<setHeader headerName="Comuns"><simple>${body[4]}</simple></setHeader>
+			<setHeader headerName="PP"><simple>${body[5]}</simple></setHeader>
+			<setHeader headerName="Cs"><simple>${body[6]}</simple></setHeader>
+			<setHeader headerName="Vox"><simple>${body[7]}</simple></setHeader>
+			<setHeader headerName="Blancs"><simple>${body[8]}</simple></setHeader>
+			<setHeader headerName="Nuls"><simple>${body[9]}</simple></setHeader>
+			<wireTap uri="direct:esconsCatalunya"/>
+			<to uri="velocity:json.vm"/>
+			<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=esconsTarragona.json"/>
 		</route>
 
 		<route autoStartup="true" id="esconsCatalunya">
-			<from uri="seda:esconsCatalunya"/>
+			<from uri="direct:esconsCatalunya"/>
 			<aggregate strategyRef="esconsCatalunya" completionSize="4">
 				<correlationExpression><constant>true</constant></correlationExpression>
-				<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-				<setHeader headerName="ERC"><simple>${body[1]}</simple></setHeader>
-				<setHeader headerName="PP"><simple>${body[2]}</simple></setHeader>
-				<setHeader headerName="Comuns"><simple>${body[3]}</simple></setHeader>
-				<setHeader headerName="Podemos"><simple>${body[4]}</simple></setHeader>
-				<setHeader headerName="PSOE"><simple>${body[5]}</simple></setHeader>
-				<setHeader headerName="VOX"><simple>${body[6]}</simple></setHeader>
-				<setHeader headerName="Ciudadanos"><simple>${body[7]}</simple></setHeader>
-				<setHeader headerName="PDECAT"><simple>${body[0]}</simple></setHeader>
-				<log message="esconsCatalunya:${body}"/>
+				<setHeader headerName="JxCAT"><simple>${body[0]}</simple></setHeader>
+				<setHeader headerName="PSOE"><simple>${body[1]}</simple></setHeader>
+				<setHeader headerName="PACMA"><simple>${body[2]}</simple></setHeader>
+				<setHeader headerName="ERC"><simple>${body[3]}</simple></setHeader>
+				<setHeader headerName="Comuns"><simple>${body[4]}</simple></setHeader>
+				<setHeader headerName="PP"><simple>${body[5]}</simple></setHeader>
+				<setHeader headerName="Cs"><simple>${body[6]}</simple></setHeader>
+				<setHeader headerName="Vox"><simple>${body[7]}</simple></setHeader>
 				<to uri="velocity:json.vm"/>
-				<to uri="file:camel/resultats?fileName=escons.json"/>
+				<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=escons.json"/>
 			</aggregate>
+			<to uri="direct:pushVots"/>
 		</route>
 
-		<route autoStartup="false" id="pushGithub">
-			<!--<from uri="direct:pushGithub"/>-->
-			<from uri="timer://foo?repeatCount=1"/>
+		<route autoStartup="true" id="mesesPendents">
+			<from uri="direct:mesesPendents"/>
+			<split streaming="true" strategyRef="jsonAggregation" parallelProcessing="true">
+				<jsonpath>$.hits.hits[*]._source</jsonpath>
+				<marshal ref="json"/>
+				<setHeader headerName="idMesa"><jsonpath>$.idMesa</jsonpath></setHeader>
+				<setHeader headerName="CamelHttpMethod"><constant>POST</constant></setHeader>
+				<setHeader headerName="Exchange.CONTENT_TYPE"><simple>application/json; charset=UTF-8</simple></setHeader>
+				<setBody><simple>
+					{"script":{"source": "ctx._source.registrat = true"},"query":{"match":{"idMesa": ${header.idMesa}}}}
+				</simple></setBody>
+				<toD uri="http4://192.168.99.100:9200/meses/meses/_update_by_query?conflicts=proceed&amp;bridgeEndpoint=true&amp;throwExceptionOnFailure=false"/>
+			</split>
+		</route>
+
+		<route autoStartup="true" id="jsonMesesPendents">
+			<from uri="direct:jsonMesesPendents"/>
+			<removeHeaders pattern="CamelHttp*" />
+			<setHeader headerName="CamelHttpMethod"><constant>POST</constant></setHeader>
+			<setHeader headerName="Exchange.CONTENT_TYPE"><simple>application/json; charset=UTF-8</simple></setHeader>
+			<setBody><simple>{"size": 10000,"query": {"match": {"registrat": false}}}</simple></setBody>
+			<toD uri="http4://192.168.99.100:9200/meses/_search?bridgeEndpoint=true&amp;throwExceptionOnFailure=false"/>
+			<log message="${body}"/>
+			<split streaming="false" strategyRef="jsonAggregation" parallelProcessing="true">
+				<jsonpath>$.hits.hits[*]._source</jsonpath>
+				<marshal ref="json"/>
+			</split>
+			<transform>
+				<simple>[${body}]</simple>
+			</transform>
+			<to uri="file:///C:/Users/125331/Documents/git/28a2019vue/dist/docs/data?fileName=meses_pendents.json"/>
+		</route>
+
+		<route autoStartup="true" id="pushGithub">
+			<from uri="direct:pushVots"/>
 			<setHeader headerName="CamelGitFilename">
-				<constant>data/vots_per_mesa.json</constant>
+				<constant>docs/data/vots_per_mesa.json</constant>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019/?operation=add"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
 			<setHeader headerName="CamelGitCommitMessage">
-				<simple>Actualització ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+				<simple>Actualització vots_per_mesa.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
 			</setHeader>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019/?operation=commit"/>
-			<to uri="git:///C:/Users/125331/Documents/git/28a2019/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019.git&amp;remoteName=https://github.com/jordicardoso/28a2019.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/vots_per_municipi.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització vots_per_municipi.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/escons.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització escons.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/esconsBarcelona.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització esconsBarcelona.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/esconsGirona.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització esconsGirona.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/esconsLleida.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització esconsLleida.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/esconsTarragona.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització esconsTarragona.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
+			<setHeader headerName="CamelGitFilename">
+				<constant>docs/data/meses_pendents.json</constant>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=add"/>
+			<setHeader headerName="CamelGitCommitMessage">
+				<simple>Actualització meses_pendents.json: ${date:now:dd-MM-yyyy'T'HH:mm:ss:SSS}</simple>
+			</setHeader>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=commit"/>
+			<to uri="git:///C:/Users/125331/Documents/git/28a2019vue/dist/?operation=push&amp;remotePath=https://github.com/jordicardoso/28a2019vue.git&amp;remoteName=https://github.com/jordicardoso/28a2019vue.git&amp;username=jordi.cardoso@gmail.com&amp;password=3dietilamina"/>
 		</route>
 	</camelContext>
 </beans>

@@ -1,5 +1,6 @@
 package DHondt;
 
+import com.google.api.client.util.ArrayMap;
 import org.apache.camel.Processor;
 import org.apache.camel.Exchange;
 import org.slf4j.Logger;
@@ -8,6 +9,7 @@ import random.rndResultats;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.lang.String;
 import java.util.stream.Collectors;
@@ -21,7 +23,19 @@ public class DHondtResults implements Processor {
     public void process(Exchange exchange) throws Exception {
 
         String escons = (String) exchange.getIn().getHeader("escons");
-        List<Integer> vots = (List<Integer>) exchange.getIn().getBody();
+        LinkedHashMap<String, Integer> bodyVots = (LinkedHashMap<String, Integer>)exchange.getIn().getBody();
+        List<Integer> vots = new ArrayList();
+        vots.add((Integer)exchange.getIn().getHeader("votsJxCAT"));
+        vots.add((Integer)exchange.getIn().getHeader("votsPSOE"));
+        vots.add((Integer)exchange.getIn().getHeader("votsPACMA"));
+        vots.add((Integer)exchange.getIn().getHeader("votsERC"));
+        vots.add((Integer)exchange.getIn().getHeader("votsComuns"));
+        vots.add((Integer)exchange.getIn().getHeader("votsPP"));
+        vots.add((Integer)exchange.getIn().getHeader("votsCiudadanos"));
+        vots.add((Integer)exchange.getIn().getHeader("votsVox"));
+        vots.add((Integer)exchange.getIn().getHeader("votsBlancs"));
+        vots.add((Integer)exchange.getIn().getHeader("votsNuls"));
+
         Integer mandatecount = Integer.parseInt(escons);
         List<Integer> mandates = createMandatesList(vots.size());
 
@@ -37,7 +51,6 @@ public class DHondtResults implements Processor {
         int indexOfWinner = getRoundWinner(votes, mandates);
         mandates.set(indexOfWinner, mandates.get(indexOfWinner) + 1);
     }
-
 
     private static int getRoundWinner(List<Integer> votes, List<Integer> mandates) {
         int indexOfWinner = 0;

@@ -3,10 +3,7 @@ package firestore;
 import com.google.api.client.util.ArrayMap;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.api.core.ApiFuture;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.FirestoreOptions;
-import com.google.cloud.firestore.QueryDocumentSnapshot;
-import com.google.cloud.firestore.QuerySnapshot;
+import com.google.cloud.firestore.*;
 
 import java.io.InputStream;
 import org.apache.camel.Exchange;
@@ -29,7 +26,7 @@ public class getVots implements Processor{
                 FirestoreOptions.newBuilder()
                         .setTimestampsInSnapshotsEnabled(true)
                         .setCredentials(credentials)
-                        .setProjectId("tuvotestucomptes-4b846")
+                        .setProjectId("tuvotestucomptes-2ecb8")
                         .build();
         Firestore db = foptions.getService();
 
@@ -42,6 +39,8 @@ public class getVots implements Processor{
         ArrayList registreVots = new ArrayList();
         for (QueryDocumentSnapshot document : documents) {
             registreVots.add(document.getData());
+            DocumentReference docRef = db.collection("vots").document(document.getId());
+            ApiFuture<WriteResult> future = docRef.update("processat", true);
         }
 
         exchange.getOut().setBody(registreVots);

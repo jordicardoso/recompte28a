@@ -25,16 +25,14 @@ public class esconsCatalunya implements AggregationStrategy {
                 .mapToObj(i -> oldBody.get(i) + newBody.get(i))
                 .collect(Collectors.toList());
 
-        newHeaders.put("votsJxC",(Integer) newHeaders.get("votsJxC") + (Integer) oldHeaders.get("votsJxC"));
+        newHeaders.put("votsJxCAT",(Integer) newHeaders.get("votsJxCAT") + (Integer) oldHeaders.get("votsJxCAT"));
         newHeaders.put("votsERC",(Integer) newHeaders.get("votsERC") + (Integer) oldHeaders.get("votsERC"));
-        newHeaders.put("votsCUP",(Integer) newHeaders.get("votsCUP") + (Integer) oldHeaders.get("votsCUP"));
-        newHeaders.put("votsCs",(Integer) newHeaders.get("votsCs") + (Integer) oldHeaders.get("votsCs"));
-        newHeaders.put("votsPSC",(Integer) newHeaders.get("votsPSC") + (Integer) oldHeaders.get("votsPSC"));
+        newHeaders.put("votsVox",(Integer) newHeaders.get("votsVox") + (Integer) oldHeaders.get("votsVox"));
+        newHeaders.put("votsCiudadanos",(Integer) newHeaders.get("votsCiudadanos") + (Integer) oldHeaders.get("votsCiudadanos"));
+        newHeaders.put("votsPSOE",(Integer) newHeaders.get("votsPSOE") + (Integer) oldHeaders.get("votsPSOE"));
         newHeaders.put("votsComuns",(Integer) newHeaders.get("votsComuns") + (Integer) oldHeaders.get("votsComuns"));
         newHeaders.put("votsPP",(Integer) newHeaders.get("votsPP") + (Integer) oldHeaders.get("votsPP"));
         newHeaders.put("votsPACMA",(Integer) newHeaders.get("votsPACMA") + (Integer) oldHeaders.get("votsPACMA"));
-        newHeaders.put("votspumj",(Integer) newHeaders.get("votspumj") + (Integer) oldHeaders.get("votspumj"));
-        newHeaders.put("votsRecortes",(Integer) newHeaders.get("votsRecortes") + (Integer) oldHeaders.get("votsRecortes"));
 
         oldExchange.getOut().setBody(result);
         oldExchange.getOut().setHeaders(newHeaders);

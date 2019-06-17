@@ -6,3 +6,5 @@
 /simulador21d.iml
 /.idea
 /camel
+/src/main/resources/service-key.json
+/scripts

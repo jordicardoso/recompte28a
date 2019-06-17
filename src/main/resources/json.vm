@@ -3,9 +3,9 @@
       "id": "jxc",
       "legend": "JxC",
       "name": "JxC",
-      "colour": "#FF5B9C",
-      "seats": ${headers.PDECAT},
-      "vots" : ${headers.votsPDECAT}
+      "colour": "#215CC2",
+      "seats": ${headers.JxCAT},
+      "vots" : ${headers.votsJxCAT}
   },
   {
       "id": "erc",
@@ -16,12 +16,12 @@
       "vots": ${headers.votsERC}
   },
   {
-      "id": "cup",
-      "legend": "CUP",
-      "name": "CUP",
-      "colour": "#F6E134",
-      "seats": ${headers.CUP},
-      "vots": ${headers.votsCUP}
+        "id": "psoe",
+        "legend": "PSOE",
+        "name": "PSOE",
+        "colour": "#C8001E",
+        "seats": ${headers.PSOE},
+        "vots": ${headers.votsPSOE}
   },
   {
       "id": "cs",
@@ -29,15 +29,7 @@
       "name": "Cs",
       "colour": "#FA7515",
       "seats": ${headers.Cs},
-      "vots": ${headers.votsCs}
-  },
-  {
-      "id": "psc",
-      "legend": "PSC",
-      "name": "PSC",
-      "colour": "#C8001E",
-      "seats": ${headers.PSC},
-      "vots": ${headers.votsPSC}
+      "vots": ${headers.votsCiudadanos}
   },
   {
       "id": "com",
@@ -46,6 +38,14 @@
       "colour": "#701471",
       "seats": ${headers.Comuns},
       "vots": ${headers.votsComuns}
+  },
+  {
+        "id": "vox",
+        "legend": "VOX",
+        "name": "VOX",
+        "colour": "#74DF4F",
+        "seats": ${headers.Vox},
+        "vots": ${headers.votsVox}
   },
   {
       "id": "pp",
@@ -62,21 +62,5 @@
       "colour": "#BAC02E",
       "seats": ${headers.PACMA},
       "vots": ${headers.votsPACMA}
-  },
-  {
-      "id": "recortes",
-      "legend": "Recortes",
-      "name": "Recortes",
-      "colour": "#4B873E",
-      "seats": ${headers.recortes},
-      "vots": ${headers.votsrecortes}
-  },
-  {
-      "id": "pumj",
-      "legend": "PUMJUST",
-      "name": "PUMJUST",
-      "colour": "#48BFE9",
-      "seats": ${headers.pumj},
-      "vots": ${headers.votspumj}
   }
 ]

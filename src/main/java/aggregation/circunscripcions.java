@@ -1,9 +1,12 @@
 package aggregation;
 
-
+import com.google.api.client.util.ArrayMap;
 import org.apache.camel.Exchange;
 import org.apache.camel.processor.aggregate.AggregationStrategy;
 import dataformats.resultats;
+
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 import static java.lang.Integer.parseInt;
 
@@ -14,33 +17,29 @@ public class circunscripcions implements AggregationStrategy {
             return newExchange;
         }
 
-        String oldBody = oldExchange.getIn().getBody(String.class);
-        String newBody = newExchange.getIn().getBody(String.class);
+        LinkedHashMap vots = new LinkedHashMap();
 
-        resultats vots = (resultats) oldExchange.getIn().getBody();
-        resultats nousvots = (resultats) newExchange.getIn().getBody();
+        vots.put("votsJxCAT", (Integer)oldExchange.getIn().getHeader("votsJxCAT") + (Integer)newExchange.getIn().getHeader("votsJxCAT"));
+        vots.put("votsPSOE", (Integer)oldExchange.getIn().getHeader("votsPSOE") + (Integer)newExchange.getIn().getHeader("votsPSOE"));
+        vots.put("votsPACMA", (Integer)oldExchange.getIn().getHeader("votsPACMA") + (Integer)newExchange.getIn().getHeader("votsPACMA"));
+        vots.put("votsERC", (Integer)oldExchange.getIn().getHeader("votsERC") + (Integer)newExchange.getIn().getHeader("votsERC"));
+        vots.put("votsComuns", (Integer)oldExchange.getIn().getHeader("votsComuns") + (Integer)newExchange.getIn().getHeader("votsComuns"));
+        vots.put("votsPP", (Integer)oldExchange.getIn().getHeader("votsPP") + (Integer)newExchange.getIn().getHeader("votsPP"));
+        vots.put("votsCiudadanos", (Integer)oldExchange.getIn().getHeader("votsCiudadanos") + (Integer)newExchange.getIn().getHeader("votsCiudadanos"));
+        vots.put("votsVox", (Integer)oldExchange.getIn().getHeader("votsVox") + (Integer)newExchange.getIn().getHeader("votsVox"));
+        vots.put("votsBlancs", (Integer)oldExchange.getIn().getHeader("votsBlancs") + (Integer)newExchange.getIn().getHeader("votsBlancs"));
+        vots.put("votsNuls", (Integer)oldExchange.getIn().getHeader("votsNuls") + (Integer)newExchange.getIn().getHeader("votsNuls"));
 
-        vots.setvnuls(vots.getvnuls() + nousvots.getvnuls());
-        vots.setvblancs(vots.getvblancs() + nousvots.getvblancs());
-        vots.setverc(vots.getverc() + nousvots.getverc());
-        vots.setvjxc(vots.getvjxc() + nousvots.getvjxc());
-        vots.setvcup(vots.getvcup() + nousvots.getvcup());
-        vots.setvpsc(vots.getvpsc() + nousvots.getvpsc());
-        vots.setvcs(vots.getvcs() + nousvots.getvcs());
-        vots.setvppc(vots.getvppc() + nousvots.getvppc());
-        vots.setvcom(vots.getvcom() + nousvots.getvcom());
-        vots.setvpacma(vots.getvpacma() + nousvots.getvpacma());
-        vots.setvdialeg(vots.getvdialeg() + nousvots.getvdialeg());
-        vots.setvpumjust(vots.getvpumjust() + nousvots.getvpumjust());
-        vots.setvrecortes(vots.getvrecortes() + nousvots.getvrecortes());
-        vots.setvfamilia(vots.getvfamilia() + nousvots.getvfamilia());
-        vots.setvdn(vots.getvdn() + nousvots.getvdn());
-        vots.setvpfiv(vots.getvpfiv() + nousvots.getvpfiv());
-        vots.setvconver(vots.getvconver() + nousvots.getvconver());
-        vots.setvunidos(vots.getvunidos() + nousvots.getvunidos());
-        vots.setvcilus(vots.getvcilus() + nousvots.getvcilus());
-
-        oldExchange.getIn().setBody(vots);
+        oldExchange.getOut().setHeader("votsJxCAT", vots.get("votsJxCAT"));
+        oldExchange.getOut().setHeader("votsPSOE", vots.get("votsPSOE"));
+        oldExchange.getOut().setHeader("votsPACMA", vots.get("votsPACMA"));
+        oldExchange.getOut().setHeader("votsERC", vots.get("votsERC"));
+        oldExchange.getOut().setHeader("votsComuns", vots.get("votsComuns"));
+        oldExchange.getOut().setHeader("votsPP", vots.get("votsPP"));
+        oldExchange.getOut().setHeader("votsCiudadanos", vots.get("votsCiudadanos"));
+        oldExchange.getOut().setHeader("votsVox", vots.get("votsVox"));
+        oldExchange.getOut().setHeader("votsBlancs", vots.get("votsBlancs"));
+        oldExchange.getOut().setHeader("votsNuls", vots.get("votsNuls"));
         return oldExchange;
     }
 }
